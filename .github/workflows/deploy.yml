@@ -24,10 +24,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build TypeScript
+        run: |
+          npm run build
+          ls -la dist/scrapers/
+
       - name: Run data fetching test
         run: |
           mkdir -p data/60s
-          npx ts-node src/test/60s-workflow.test.ts
+          npx ts-node -r tsconfig-paths/register src/test/60s-workflow.test.ts
 
       - name: Archive test results
         if: always()
