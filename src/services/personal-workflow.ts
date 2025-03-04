@@ -63,7 +63,8 @@ export class PersonalWorkflow extends WeixinWorkflow {
   }
 
   async refresh(): Promise<{ date: string } | null> {
-    await super.refresh(); // 调用父类的refresh方法，但不使用其返回值
+    // 调用父类的refresh方法，但不使用其返回值
+    await super.refresh();
     
     // 获取60秒新闻抓取器
     const scraper = this.scraper.get("fireCrawl") as SixtySecondsScraper;

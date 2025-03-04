@@ -19,18 +19,19 @@ import { DeepseekAPI } from "../api/deepseek.api";
 import { ContentRanker, RankResult } from "../utils/content-rank/content-ranker";
 import { QianwenAISummarizer } from "../summarizer/qianwen-ai.summarizer";
 import { ConfigManager } from "../utils/config/config-manager";
+import { Workflow } from "./interfaces/workflow.interface";
 
 dotenv.config();
 
-export class WeixinWorkflow {
-  private scraper: Map<string, ContentScraper>;
-  private summarizer: ContentSummarizer;
-  private publisher: ContentPublisher;
-  private notifier: BarkNotifier;
-  private renderer: WeixinTemplateRenderer;
-  private imageGenerator: AliWanX21ImageGenerator;
-  private deepSeekClient: DeepseekAPI;
-  private stats = {
+export class WeixinWorkflow implements Workflow {
+  protected scraper: Map<string, ContentScraper>;
+  protected summarizer: ContentSummarizer;
+  protected publisher: ContentPublisher;
+  protected notifier: BarkNotifier;
+  protected renderer: WeixinTemplateRenderer;
+  protected imageGenerator: AliWanX21ImageGenerator;
+  protected deepSeekClient: DeepseekAPI;
+  protected stats = {
     success: 0,
     failed: 0,
     contents: 0,
@@ -48,7 +49,7 @@ export class WeixinWorkflow {
     this.deepSeekClient = new DeepseekAPI();
   }
 
-  async refresh(): Promise<void> {
+  async refresh(): Promise<{ date: string } | null> {
     await this.notifier.refresh();
     await this.summarizer.refresh();
     await this.publisher.refresh();
@@ -56,9 +57,10 @@ export class WeixinWorkflow {
     await this.scraper.get("twitter")?.refresh();
     await this.imageGenerator.refresh();
     await this.deepSeekClient.refresh();
+    return null;
   }
 
-  private async scrapeSource(
+  protected async scrapeSource(
     type: string,
     source: { identifier: string },
     scraper: ContentScraper
@@ -80,7 +82,7 @@ export class WeixinWorkflow {
     }
   }
 
-  private async processContent(content: ScrapedContent): Promise<void> {
+  protected async processContent(content: ScrapedContent): Promise<void> {
     try {
       const summary = await this.summarizer.summarize(JSON.stringify(content));
       content.title = summary.title;
@@ -100,18 +102,86 @@ export class WeixinWorkflow {
     }
   }
 
+  protected async generateAndPublishContent(contents: ScrapedContent[]): Promise<void> {
+    // 5. 生成并发布
+    console.log("\n[模板生成] 生成微信文章");
+    const templateData: WeixinTemplate[] = contents.map((content) => ({
+      id: content.id,
+      title: content.title,
+      content: content.content,
+      url: content.url,
+      publishDate: content.publishDate,
+      metadata: content.metadata,
+      keywords: content.metadata.keywords,
+    }));
+
+    // 将所有标题总结成一个标题，然后让AI生成一个最具有吸引力的标题
+    const summaryTitle = await this.summarizer.generateTitle(
+      contents.map((content) => content.title).join(" | ")
+    ).then((title) => {
+      // 限制标题长度 为 64 个字符
+      return title.slice(0, 64);
+    });
+
+    console.log(`[标题生成] 生成标题: ${summaryTitle}`);
+
+    // 生成封面图片
+    const taskId = await this.imageGenerator
+      .generateImage("AI新闻日报的封面", "1440*768")
+      .then((res) => res.output.task_id);
+    console.log(`[封面图片] 封面图片生成任务ID: ${taskId}`);
+    const imageUrl = await this.imageGenerator
+      .waitForCompletion(taskId)
+      .then((res) => res.results?.[0]?.url)
+      .then((url) => {
+        if (!url) {
+          return "";
+        }
+        return url;
+      });
+
+    // 上传封面图片
+    const mediaId = await this.publisher.uploadImage(imageUrl);
+
+    const renderedTemplate = this.renderer.render(templateData);
+    console.log("[发布] 发布到微信公众号");
+    const publishResult = await this.publisher.publish(
+      renderedTemplate,
+      `${new Date().toLocaleDateString()} AI速递 | ${summaryTitle}`,
+      summaryTitle,
+      mediaId
+    );
+
+    // 5. 完成报告
+    const summary = `
+      工作流执行完成
+      - 数据源: ${contents.length} 个
+      - 成功: ${this.stats.success} 个
+      - 失败: ${this.stats.failed} 个
+      - 内容: ${this.stats.contents} 条
+      - 发布: ${publishResult.status}`.trim();
+
+    console.log(`=== ${summary} ===`);
+
+    if (this.stats.failed > 0) {
+      await this.notifier.warning("工作流完成(部分失败)", summary);
+    } else {
+      await this.notifier.success("工作流完成", summary);
+    }
+  }
+
   async process(): Promise<void> {
     try {
       console.log("=== 开始执行微信工作流 ===");
       await this.notifier.info("工作流开始", "开始执行内容抓取和处理");
 
       // 检查 API 额度
-      // deepseek
       const deepSeekBalance = await this.deepSeekClient.getCNYBalance();
       console.log("DeepSeek余额：", deepSeekBalance);
       if (deepSeekBalance < 1.0) {
         this.notifier.warning("DeepSeek", "余额小于一元");
       }
+
       // 1. 获取数据源
       const sourceConfigs = await getCronSources();
 
@@ -226,74 +296,10 @@ export class WeixinWorkflow {
       summaryProgress.stop();
 
       // 5. 生成并发布
-      console.log("\n[模板生成] 生成微信文章");
-      const templateData: WeixinTemplate[] = topContents.map((content) => ({
-        id: content.id,
-        title: content.title,
-        content: content.content,
-        url: content.url,
-        publishDate: content.publishDate,
-        metadata: content.metadata,
-        keywords: content.metadata.keywords,
-      }));
-
-      // 将所有标题总结成一个标题，然后让AI生成一个最具有吸引力的标题
-      const summaryTitle = await this.summarizer.generateTitle(
-        allContents.map((content) => content.title).join(" | ")
-      ).then((title) => {
-        // 限制标题长度 为 64 个字符
-        return title.slice(0, 64);
-      });
-
-      console.log(`[标题生成] 生成标题: ${summaryTitle}`);
-
-      // 生成封面图片
-      const taskId = await this.imageGenerator
-        .generateImage("AI新闻日报的封面", "1440*768")
-        .then((res) => res.output.task_id);
-      console.log(`[封面图片] 封面图片生成任务ID: ${taskId}`);
-      const imageUrl = await this.imageGenerator
-        .waitForCompletion(taskId)
-        .then((res) => res.results?.[0]?.url)
-        .then((url) => {
-          if (!url) {
-            return "";
-          }
-          return url;
-        });
-
-      // 上传封面图片
-      const mediaId = await this.publisher.uploadImage(imageUrl);
-
-      const renderedTemplate = this.renderer.render(templateData);
-      console.log("[发布] 发布到微信公众号");
-      const publishResult = await this.publisher.publish(
-        renderedTemplate,
-        `${new Date().toLocaleDateString()} AI速递 | ${summaryTitle}`,
-        summaryTitle,
-        mediaId
-      );
-
-      // 5. 完成报告
-      const summary = `
-        工作流执行完成
-        - 数据源: ${totalSources} 个
-        - 成功: ${this.stats.success} 个
-        - 失败: ${this.stats.failed} 个
-        - 内容: ${this.stats.contents} 条
-        - 发布: ${publishResult.status}`.trim();
-
-      console.log(`=== ${summary} ===`);
-
-      if (this.stats.failed > 0) {
-        await this.notifier.warning("工作流完成(部分失败)", summary);
-      } else {
-        await this.notifier.success("工作流完成", summary);
-      }
+      await this.generateAndPublishContent(topContents);
+      
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error("[工作流] 执行失败:", message);
-      await this.notifier.error("工作流失败", message);
+      console.error("工作流执行失败:", error);
       throw error;
     }
   }
