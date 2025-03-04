@@ -7,16 +7,12 @@ async function main() {
   
   try {
     console.log("刷新工作流...");
-    const result = await workflow.refresh();
-    console.log("刷新结果:", result);
+    await workflow.refresh();
+    console.log("刷新完成");
     
-    if (result) {
-      console.log("处理工作流...");
-      await workflow.process();
-      console.log("工作流处理完成");
-    } else {
-      console.log("没有新数据，跳过处理");
-    }
+    console.log("处理工作流...");
+    await workflow.process();
+    console.log("工作流处理完成");
   } catch (error) {
     console.error("工作流执行失败:", error);
   }
