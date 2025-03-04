@@ -7,6 +7,7 @@ import { SixtySecondsScraper } from "../scrapers/60s.scraper";
 import axios from "axios";
 import * as fs from 'fs';
 import * as path from 'path';
+import { Workflow } from "./interfaces/workflow.interface";
 
 interface SixtySecondsResponse {
   code: number;
@@ -28,7 +29,7 @@ interface SixtySecondsResponse {
   };
 }
 
-export class PersonalWorkflow extends WeixinWorkflow {
+export class PersonalWorkflow extends WeixinWorkflow implements Workflow {
   private readonly dataDir = path.join(process.cwd(), 'data', '60s');
 
   constructor() {
