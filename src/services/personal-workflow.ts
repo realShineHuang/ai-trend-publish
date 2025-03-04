@@ -63,10 +63,10 @@ export class PersonalWorkflow extends WeixinWorkflow {
   }
 
   async refresh(): Promise<{ date: string } | null> {
-    await super.refresh();
+    await super.refresh(); // 调用父类的refresh方法，但不使用其返回值
     
     // 获取60秒新闻抓取器
-    const scraper = this.scraper.get("fireCrawl") as SixtySecondsScraper;
+    const scraper = (this as any).scraper.get("fireCrawl") as SixtySecondsScraper;
     if (!scraper) {
       return null;
     }
@@ -129,13 +129,13 @@ export class PersonalWorkflow extends WeixinWorkflow {
         const batch = topContents.slice(i, i + batchSize);
         await Promise.all(
           batch.map(async (content) => {
-            await this.processContent(content);
+            await (this as any).processContent(content);
           })
         );
       }
       
       // 生成并发布内容
-      await this.generateAndPublishContent(topContents);
+      await super.generateAndPublishContent(topContents);
       
     } catch (error) {
       console.error("《每天 60 秒读懂世界》工作流执行失败:", error);

@@ -38,14 +38,13 @@ const executeWorkflow = async (workflow: Workflow, dayOfWeek: number, descriptio
     const data = await workflow.refresh();
     
     // 检查数据日期
-    const currentDate = data && typeof data === 'object' && 'date' in data ? data.date as string : null;
-    if (currentDate && needsUpdate(currentDate)) {
-      console.log(`${description} - 发现新数据，日期: ${currentDate}`);
+    if (data && data.date) {
+      console.log(`${description} - 发现新数据，日期: ${data.date}`);
       await workflow.process();
-      updateLastDate(currentDate);
+      updateLastDate(data.date);
       return true;
     } else {
-      console.log(`${description} - 无需更新，当前数据日期: ${currentDate}, 最后更新日期: ${lastUpdateDate}`);
+      console.log(`${description} - 无需更新，当前数据日期: ${data?.date}, 最后更新日期: ${lastUpdateDate}`);
       return false;
     }
   } catch (error) {
