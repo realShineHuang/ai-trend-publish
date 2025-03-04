@@ -1,70 +1,35 @@
-name: Deploy to Production # 部署到生产环境
+name: Test Data Fetching
 
 on:
-  push:
-    branches:
-      - main
+  schedule:
+    - cron: '*/10 * * * *'  # 每10分钟执行一次
   workflow_dispatch: # 允许手动触发工作流
 
 jobs:
-  deploy:
-    runs-on: ubuntu-latest # 在最新版本的 Ubuntu 运行器上运行
+  test-fetch:
+    runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4 # 检出代码
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js # 设置 Node.js 环境
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20" # 使用 Node.js 20 版本
-          cache: "npm" # 启用 npm 依赖缓存
+          node-version: "20"
+          cache: "npm"
 
-      - name: Install dependencies # 安装项目依赖
+      - name: Install dependencies
         run: npm ci
 
-      - name: Build # 构建项目
-        run: npm run build
-
-      - name: Create .env file # 创建环境配置文件
+      - name: Run data fetching test
         run: |
-          cat > .env << EOL
-          # 数据库配置
-          DB_HOST=${{ secrets.DB_HOST }}
-          DB_PORT=${{ secrets.DB_PORT }}
-          DB_USER=${{ secrets.DB_USER }}
-          DB_PASSWORD=${{ secrets.DB_PASSWORD }}
-          DB_DATABASE=${{ secrets.DB_DATABASE }}
-          EOL
+          mkdir -p data/60s
+          npx ts-node src/test/60s-workflow.test.ts
 
-      - name: Setup SSH # 设置 SSH
-        run: |
-          mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
-          ssh-keyscan "${{ secrets.SERVER_HOST }}" >> ~/.ssh/known_hosts
-
-      - name: Test SSH Connection # 测试 SSH 连接
-        run: |
-          echo "Testing SSH connection..."
-          echo "Server: ${{ secrets.SERVER_HOST }}"
-          echo "User: ${{ secrets.SERVER_USER }}"
-          ssh -i ~/.ssh/id_rsa "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" "source ~/.nvm/nvm.sh && nvm use 22 && echo 'SSH connection successful'"
-
-      - name: Package Files # 打包文件
-        run: |
-          tar -czf build.tar.gz dist package*.json .env
-
-      - name: Upload to Server # 上传到服务器
-        run: |
-          scp -i ~/.ssh/id_rsa build.tar.gz "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:~/app/"
-
-      - name: Deploy on Server # 在服务器上部署
-        run: |
-          ssh -i ~/.ssh/id_rsa "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" "cd ~/app && \
-            source ~/.nvm/nvm.sh && \
-            nvm use 22 && \
-            tar -xzf build.tar.gz && \
-            npm ci --production && \
-            pm2 delete trend-finder || true && \
-            pm2 start dist/index.js --name trend-finder && \
-            rm build.tar.gz"
+      - name: Archive test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-data
+          path: data/60s/
+          retention-days: 7
