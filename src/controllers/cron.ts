@@ -35,16 +35,16 @@ const initializeWorkflows = () => {
 const executeWorkflow = async (workflow: Workflow, dayOfWeek: number, description: string) => {
   try {
     // 先获取数据但不处理
-    const data = await workflow.refresh();
+    const refreshResult = await workflow.refresh();
     
     // 检查数据日期
-    if (data && data.date) {
-      console.log(`${description} - 发现新数据，日期: ${data.date}`);
+    if (refreshResult && refreshResult.date) {
+      console.log(`${description} - 发现新数据，日期: ${refreshResult.date}`);
       await workflow.process();
-      updateLastDate(data.date);
+      updateLastDate(refreshResult.date);
       return true;
     } else {
-      console.log(`${description} - 无需更新，当前数据日期: ${data?.date}, 最后更新日期: ${lastUpdateDate}`);
+      console.log(`${description} - 无需更新，当前数据日期: ${refreshResult?.date}, 最后更新日期: ${lastUpdateDate}`);
       return false;
     }
   } catch (error) {
