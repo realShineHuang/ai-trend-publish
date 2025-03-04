@@ -1,6 +1,9 @@
 name: Test Data Fetching
 
 on:
+  push:
+    branches:
+      - '*'  # 所有分支
   schedule:
     - cron: '*/10 * * * *'  # 每10分钟执行一次
   workflow_dispatch: # 允许手动触发工作流
