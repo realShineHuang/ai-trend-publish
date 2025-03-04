@@ -19,10 +19,11 @@ export class WeixinAIBenchWorkflow implements Workflow {
     this.publisher = new WeixinPublisher();
   }
 
-  async refresh(): Promise<void> {
+  async refresh(): Promise<{ date: string } | null> {
     await this.notify.refresh();
     await this.liveBenchAPI.refresh();
     await this.publisher.refresh();
+    return null;
   }
 
   async process(): Promise<void> {

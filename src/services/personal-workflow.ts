@@ -31,6 +31,7 @@ interface SixtySecondsResponse {
 
 export class PersonalWorkflow extends WeixinWorkflow implements Workflow {
   private readonly dataDir = path.join(process.cwd(), 'data', '60s');
+  private lastUpdated: string | null = null;
 
   constructor() {
     super();
@@ -63,14 +64,14 @@ export class PersonalWorkflow extends WeixinWorkflow implements Workflow {
     }
   }
 
-  async refresh(): Promise<{ date: string } | null> {
-    // 调用父类的refresh方法，但不使用其返回值
+  async refresh(): Promise<void> {
+    // 调用父类的refresh方法
     await super.refresh();
     
     // 获取60秒新闻抓取器
     const scraper = this.scraper.get("fireCrawl") as SixtySecondsScraper;
     if (!scraper) {
-      return null;
+      return;
     }
 
     try {
@@ -86,12 +87,10 @@ export class PersonalWorkflow extends WeixinWorkflow implements Workflow {
       await this.saveDataToFile(data);
       
       // 使用 updated 时间作为判断依据
-      return { date: data.updated };
+      this.lastUpdated = data.updated;
     } catch (error) {
       console.error("获取《每天 60 秒读懂世界》数据失败:", error);
     }
-    
-    return null;
   }
 
   async process(): Promise<void> {

@@ -49,7 +49,7 @@ export class WeixinWorkflow implements Workflow {
     this.deepSeekClient = new DeepseekAPI();
   }
 
-  async refresh(): Promise<{ date: string } | null> {
+  async refresh(): Promise<void> {
     await this.notifier.refresh();
     await this.summarizer.refresh();
     await this.publisher.refresh();
@@ -57,7 +57,6 @@ export class WeixinWorkflow implements Workflow {
     await this.scraper.get("twitter")?.refresh();
     await this.imageGenerator.refresh();
     await this.deepSeekClient.refresh();
-    return null;
   }
 
   protected async scrapeSource(

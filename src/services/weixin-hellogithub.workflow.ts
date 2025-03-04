@@ -25,9 +25,10 @@ export class WeixinHelloGithubWorkflow implements Workflow {
   /**
    * 刷新工作流所需的资源和配置
    */
-  public async refresh(): Promise<void> {
+  public async refresh(): Promise<{ date: string } | null> {
     await this.publisher.refresh();
     await this.imageGenerator.refresh();
+    return null;
   }
 
   /**
